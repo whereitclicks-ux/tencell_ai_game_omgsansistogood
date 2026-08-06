@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Last Corridor — a tiny boss battle</title>
+<style>
+  html,body{height:100%;margin:0;background:#06070d;color:#fff;font-family:Consolas,"Courier New",monospace;overflow:hidden}
+  #wrap{height:100%;display:grid;place-items:center;background:radial-gradient(circle at 50% 35%,#1b1f38 0,#070810 52%,#000 100%)}
+  canvas{max-width:100vw;max-height:100vh;image-rendering:pixelated;box-shadow:0 0 45px #4c61b8;border:3px solid #d9dcff;background:#080914}
+  #tip{position:fixed;bottom:12px;color:#aeb8e9;font-size:12px;letter-spacing:1px;text-align:center;width:100%;pointer-events:none}
+</style>
+</head>
+<body><div id="wrap"><canvas id="game" width="900" height="600"></canvas></div><div id="tip">ARROWS: MOVE &nbsp; • &nbsp; SPACE: ATTACK &nbsp; • &nbsp; ENTER: START / RESTART</div>
+<script>
+(() => {
+  const c=document.querySelector('#game'), x=c.getContext('2d'); x.imageSmoothingEnabled=false;
+  const K={}, W=900,H=600, box={x:225,y:305,w:450,h:215};
+  addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' ','Enter'].includes(e.key))e.preventDefault();K[e.key]=true;if(e.key==='Enter')enter();});
+  addEventListener('keyup',e=>K[e.key]=false);
+  const roasts=['you move like your keyboard is on vacation.','that dodge was a very ambitious suggestion.','i have seen snowballs put up more resistance.','you are making this look easy. for me.','your strategy needs a strategy.','even my shortcuts have better footwork.'];
+  const deaths=['you suck at this.','that was almost impressive. almost.','try using the arrow keys before the afterlife.','the floor appreciates your dedication.','you made losing look like a hobby.'];
+  let s, last=0;
+  function reset(){s={mode:'title',t:0,phase:0,round:0,hp:92,boss:50,px:450,py:420,inv:0,bones:[],shots:[],msg:'',msgT:0,spawn:0,attackCd:0,slash:0,shake:0,deathLine:'',papyrusT:0,winT:0,combo:0,attackTimer:6.3,attackOpen:false,windowTimer:0,windowAttackUsed:false,moving:false};}
+  reset();
+  function enter(){if(s.mode==='title'||s.mode==='dead'||s.mode==='win') {reset();s.mode='intro';s.msg='* You feel a bad time approaching.';s.msgT=2.5;}}
+  function rectHit(px,py,r,b){let qx=Math.max(b.x,Math.min(px,b.x+b.w)),qy=Math.max(b.y,Math.min(py,b.y+b.h));return (px-qx)**2+(py-qy)**2<r*r;}
+  function bone(x0,y0,dx,dy,len=70,w=14,spd=220,color='#f4f1df',blue=false){s.bones.push({x:x0,y:y0,dx,dy,len,w,spd,color,blue,dead:false});}
+  function hurt(){if(s.inv>0||s.mode!=='fight')return;s.hp-=8;s.inv=.62;s.shake=10;s.msg=roasts[(Math.random()*roasts.length)|0];s.msgT=1.5;if(s.hp<=0){s.hp=0;s.mode='dead';s.deathLine=deaths[(Math.random()*deaths.length)|0];}}
+  function startFight(){s.mode='fight';s.phase=1;s.round=0;s.msg='SANS: heya. ready for a bad time?';s.msgT=2.8;s.spawn=.8;s.attackTimer=6.3;}
+  function attack(){if(s.mode!=='fight'||s.attackCd>0)return;s.attackCd=.38;s.slash=.2;
+    if(s.phase===4){if(Math.random()<.30)s.msg='PAPYRUS: NYEH! YOU MISSED ME!';else s.msg='PAPYRUS: I AM ALREADY DOING MY DRAMATIC EXIT!';s.msgT=1.35;return;}
+    if(!s.attackOpen){s.msg='SANS: not your turn. wait until i say i am tired.';s.msgT=1.45;return;}
+    if(s.windowAttackUsed){s.msg='SANS: one swing per break. rules are rules.';s.msgT=1.45;return;}
+    s.windowAttackUsed=true;
+    if(Math.random()<.30){s.msg='SANS: whoops. looks like you missed.';s.msgT=1.35;return;}
+    s.boss-=5;s.msg=s.boss>10?'SANS: okay, okay. that one counted.':'... wait. you are still here?';s.msgT=1.5;
+    if(s.boss<=30&&s.phase===1){s.phase=2;s.msg='SANS: you are starting to annoy me.';s.msgT=2.1;}
+    if(s.boss<=10&&s.phase<3){s.phase=3;s.boss=10;s.bones=[];s.attackOpen=false;s.attackTimer=4.8;s.msg='SANS: okay. one last shortcut.';s.msgT=2.4;s.spawn=1.2;}
+    else if(s.phase===3&&s.boss<=0){s.phase=4;s.bones=[];s.papyrusT=4;s.msg='PAPYRUS: NYEH HEH HEH! BEHOLD, ONE BONE!';s.msgT=3.5;}
+  }
+  function spawnPattern(dt){s.spawn-=dt;if(s.spawn>0||s.attackOpen)return;
+    const p=s.phase;
+    let k=s.combo%4, xx=box.x+25+Math.random()*(box.w-50), yy=box.y+25+Math.random()*(box.h-50);
+    if(p===1){
+      if(k===0){let L=Math.random()<.5;bone(L?box.x-80:box.x+box.w+80,yy,L?1:-1,0,70,14,240);s.spawn=.28;}
+      if(k===1){for(let i=0;i<3;i++)bone(box.x+65+i*155,box.y-80,0,1,72,14,245);s.spawn=.65;}
+      if(k===2){bone(box.x-80,box.y+42,1,0,115,15,250,'#4cdcff',true);bone(box.x+box.w+80,box.y+box.h-42,-1,0,115,15,250,'#4cdcff',true);s.spawn=.55;}
+      if(k===3){bone(xx,box.y-80,0,1,95,14,280);bone(box.x+box.w+80,yy,-1,0,80,14,280);s.spawn=.42;}
+    }
+    if(p===2){
+      if(k===0){for(let i=0;i<4;i++)bone(box.x+45+i*120,box.y-80,0,1,78,15,285);s.spawn=.36;}
+      if(k===1){let L=Math.random()<.5;bone(L?box.x-90:box.x+box.w+90,yy,L?1:-1,0,150,18,310);s.spawn=.24;}
+      if(k===2){bone(xx,box.y-90,0,1,120,17,300,'#4cdcff',true);bone(box.x+box.w+90,box.y+box.h-50,-1,0,95,15,300);s.spawn=.30;}
+      if(k===3){bone(box.x-90,box.y+40,1,0,125,18,330);bone(box.x+box.w+90,box.y+box.h-40,-1,0,125,18,330);s.spawn=.52;}
+    }
+    if(p===3){bone(box.x-90,box.y+box.h-38,1,0,120,19,345);bone(box.x+box.w+90,box.y+38,-1,0,120,19,345);bone(xx,box.y-90,0,1,95,15,325,'#4cdcff',true);s.spawn=.58;}
+  }
+  function update(dt){s.t+=dt;s.msgT-=dt;s.inv-=dt;s.attackCd-=dt;s.slash-=dt;s.shake=Math.max(0,s.shake-dt*30);
+    if(s.mode==='intro'&&s.t>2.7)startFight();
+    if(s.mode==='fight'){
+      let vx=(K.ArrowRight?1:0)-(K.ArrowLeft?1:0),vy=(K.ArrowDown?1:0)-(K.ArrowUp?1:0);let mag=Math.hypot(vx,vy)||1;s.moving=!!(vx||vy); s.px+=vx/mag*245*dt;s.py+=vy/mag*245*dt;s.px=Math.max(box.x+11,Math.min(box.x+box.w-11,s.px));s.py=Math.max(box.y+11,Math.min(box.y+box.h-11,s.py));
+      if(K[' ']){K[' ']=false;attack();} spawnPattern(dt);
+      if(s.phase!==4){if(s.attackOpen){s.windowTimer-=dt;if(s.windowTimer<=0){s.attackOpen=false;s.combo++;s.attackTimer=s.phase===3?4.5:5.5;s.msg='SANS: break is over. try not to die.';s.msgT=1.8;}}else{ s.attackTimer-=dt;if(s.attackTimer<=0){s.attackOpen=true;s.windowAttackUsed=false;s.windowTimer=2.4;s.bones=[];s.msg="SANS: i'm tired. go ahead, hit me.";s.msgT=2.4;}}}
+      for(const b of s.bones){b.x+=b.dx*b.spd*dt;b.y+=b.dy*b.spd*dt;let bb={x:b.x-b.w/2,y:b.y-b.len/2,w:b.w,h:b.len};if(Math.abs(b.dx)>0)bb={x:b.x-b.len/2,y:b.y-b.w/2,w:b.len,h:b.w};if(rectHit(s.px,s.py,8,bb)&&(!b.blue||s.moving))hurt();if(b.x<box.x-160||b.x>box.x+box.w+160||b.y<box.y-160||b.y>box.y+box.h+160)b.dead=true;}s.bones=s.bones.filter(b=>!b.dead);
+    }
+    if(s.mode==='fight'&&s.phase===4){s.papyrusT-=dt;if(s.papyrusT<2.6&&s.bones.length===0){bone(box.x-100,box.y+box.h/2,1,0,300,32,460);s.msg='PAPYRUS: THIS IS MY VERY SPECIAL ATTACK!';s.msgT=2;}if(s.papyrusT<=0){s.mode='win';s.winT=0;}}
+    if(s.mode==='win')s.winT+=dt;
+  }
+  function text(t,a,b,sz=18,col='#fff',align='left'){x.font=`bold ${sz}px Consolas,monospace`;x.fillStyle=col;x.textAlign=align;x.fillText(t,a,b);}
+  function boneDraw(b){x.save();x.translate(b.x,b.y);if(Math.abs(b.dx)>0)x.rotate(Math.PI/2);x.fillStyle=b.color;x.fillRect(-b.w/2,-b.len/2,b.w,b.len);x.beginPath();x.arc(0,-b.len/2, b.w/2,0,Math.PI*2);x.arc(0,b.len/2,b.w/2,0,Math.PI*2);x.fill();x.restore();}
+  function drawBoy(px,py){x.save();x.translate(px,py);x.fillStyle='#5d3526';x.fillRect(-7,-15,14,12);x.fillStyle='#f2b481';x.fillRect(-6,-12,12,13);x.fillStyle='#3a4eb8';x.fillRect(-8,1,16,13);x.fillStyle='#1c2257';x.fillRect(-7,14,5,8);x.fillRect(2,14,5,8);x.fillStyle='#fff';x.fillRect(-4,-8,2,2);x.fillRect(3,-8,2,2);x.restore();}
+  function drawSans(){x.save();x.translate(450,160); // detailed original pixel-style boss portrait
+    x.fillStyle='#080b13';x.fillRect(-72,17,144,76);x.fillStyle='#2f5ba8';x.fillRect(-68,19,136,66);x.fillStyle='#163169';x.fillRect(-59,28,118,55);x.fillStyle='#e9e5d7';x.fillRect(-52,61,104,28);x.fillStyle='#b9b6ae';x.fillRect(-46,79,92,10);
+    x.fillStyle='#f1eee0';x.fillRect(-42,-55,84,76);x.fillRect(-33,-68,66,20);x.fillRect(-50,-39,100,52);x.fillStyle='#c8c6bd';x.fillRect(-44,10,88,8);
+    x.fillStyle='#111420';x.fillRect(-31,-35,20,18);x.fillRect(12,-35,20,18);x.fillRect(-25,-29,8,8);x.fillStyle='#24eaff';x.fillRect(18,-30,9,10);x.fillStyle='#506cff';x.fillRect(20,-27,5,5);
+    x.fillStyle='#151720';x.fillRect(-28,-4,56,8);x.fillRect(-18,4,36,5);x.fillStyle='#e7e4d7';x.fillRect(-34,-58,10,8);x.fillRect(24,-58,10,8);
+    x.fillStyle='#f1eee0';x.fillRect(-75,34,18,42);x.fillRect(57,34,18,42);x.fillStyle='#10162b';x.fillRect(-79,70,22,10);x.fillRect(57,70,22,10);x.restore();}
+  function drawPapyrus(){x.save();x.translate(450,154); // tall armor, scarf, gloves and boots
+    x.fillStyle='#f1ecdb';x.fillRect(-35,-66,70,82);x.fillRect(-46,-48,92,56);x.fillStyle='#c8c2b1';x.fillRect(-38,9,76,10);x.fillStyle='#10131b';x.fillRect(-27,-42,15,19);x.fillRect(12,-42,15,19);x.fillRect(-21,-35,7,7);x.fillRect(16,-35,7,7);x.fillStyle='#10131b';x.fillRect(-25,-10,50,8);x.fillRect(-14,-2,28,6);
+    x.fillStyle='#e63338';x.fillRect(-75,20,150,29);x.fillStyle='#ffb52d';x.fillRect(-57,25,114,8);x.fillStyle='#f2eee0';x.fillRect(-42,49,84,76);x.fillStyle='#c8c2b1';x.fillRect(-45,54,90,14);x.fillStyle='#e63338';x.fillRect(-38,70,76,9);x.fillStyle='#f2eee0';x.fillRect(-64,53,22,44);x.fillRect(42,53,22,44);x.fillStyle='#e63338';x.fillRect(-68,88,30,13);x.fillRect(38,88,30,13);x.fillStyle='#f2eee0';x.fillRect(-32,124,22,35);x.fillRect(10,124,22,35);x.fillStyle='#e63338';x.fillRect(-43,155,38,13);x.fillRect(5,155,38,13);x.restore();}
+  function draw(){let ox=(Math.random()-.5)*s.shake,oy=(Math.random()-.5)*s.shake;x.clearRect(0,0,W,H);x.save();x.translate(ox,oy);
+    x.fillStyle='#111323';x.fillRect(0,0,W,H); for(let i=0;i<45;i++){x.fillStyle=i%3?'#1e213a':'#394064';x.fillRect((i*83)%W,(i*47)%H,2,2);}
+    if(s.mode==='title'){text('LAST CORRIDOR',450,155,43,'#e8efff','center');text('a tiny, unfair-looking battle',450,188,16,'#9ba7dc','center');drawSans();text('PRESS ENTER',450,435,27, s.t%1<.55?'#fff':'#7792ff','center');text('ARROWS move  •  SPACE attacks  •  ENTER restarts',450,480,14,'#b8c1ec','center');text('Blue bones are safe only while you stand still. Attack when he says he is tired.',450,520,13,'#7f8ab8','center');x.restore();return;}
+    if(s.mode==='win'){drawWin();x.restore();return;}
+    (s.phase===4?drawPapyrus:drawSans)();
+    x.strokeStyle='#fff';x.lineWidth=4;x.strokeRect(box.x,box.y,box.w,box.h);
+    for(const b of s.bones)boneDraw(b); if(s.mode==='fight'&&(s.inv<=0||Math.floor(s.inv*14)%2===0))drawBoy(s.px,s.py);
+    x.fillStyle='#201d24';x.fillRect(35,545,290,21);x.fillStyle='#ff5167';x.fillRect(38,548,Math.max(0,s.hp)/92*284,15);text(`HP ${Math.ceil(s.hp)} / 92`,42,563,14,'#fff');
+    x.fillStyle='#201d24';x.fillRect(575,545,290,21);x.fillStyle=s.phase===4?'#ffd743':'#66bdf8';x.fillRect(578,548,Math.max(0,s.boss)/50*284,15);text(s.phase===4?'PAPYRUS ? / ?':`SANS ${Math.max(0,s.boss)} / 50`,858,563,14,'#fff','right');
+    if(s.slash>0){x.strokeStyle='#fff';x.lineWidth=5;x.beginPath();x.arc(s.px,s.py,30+(1-s.slash/.2)*90,-.9,.9);x.stroke();}
+    if(s.msgT>0){x.fillStyle='rgba(0,0,0,.86)';x.fillRect(115,245,670,45);x.strokeStyle='#fff';x.lineWidth=2;x.strokeRect(115,245,670,45);text(s.msg,135,274,16,'#fff');}
+    if(s.mode==='dead'){x.fillStyle='rgba(0,0,0,.75)';x.fillRect(0,0,W,H);text('YOU DIED',450,230,50,'#ff5067','center');text(`SANS: ${s.deathLine}`,450,285,18,'#fff','center');text('PRESS ENTER TO TRY AGAIN',450,385,22,'#b8c1ec','center');}
+    x.restore();
+  }
+  function drawWin(){x.fillStyle='#09192a';x.fillRect(0,0,W,H);text('YOU WON.',450,85,42,'#ffe85e','center'); // tiny duck named Pim
+    x.save();x.translate(450,290);x.fillStyle='#ffd82f';x.beginPath();x.ellipse(-10,0,105,75,0,0,Math.PI*2);x.fill();x.beginPath();x.arc(52,-65,55,0,Math.PI*2);x.fill();x.fillStyle='#f79437';x.beginPath();x.moveTo(92,-56);x.lineTo(145,-42);x.lineTo(92,-25);x.fill();x.fillStyle='#111';x.beginPath();x.arc(65,-75,6,0,7);x.fill();x.fillStyle='#fff';x.fillRect(-73,60,32,11);x.fillRect(25,60,32,11);x.restore();
+    text('"hi am pim and i cant believe you actually beat him."',450,430,19,'#fff','center');text('PRESS ENTER TO PLAY AGAIN',450,510,17,'#a9bee8','center');}
+  function loop(now){let dt=Math.min(.033,(now-last)/1000||0);last=now;update(dt);draw();requestAnimationFrame(loop);}requestAnimationFrame(loop);
+})();
+</script></body></html>
